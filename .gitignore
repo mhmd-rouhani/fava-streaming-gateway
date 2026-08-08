@@ -13,4 +13,6 @@ minio-data/
 docs/
 .tools/
 *.png
+*.command
+publish-to-github.sh
 !.github/**
