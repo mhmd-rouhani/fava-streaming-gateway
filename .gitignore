@@ -1,0 +1,16 @@
+node_modules/
+.nuxt/
+.output/
+dist/
+.env
+.DS_Store
+*.log
+coverage/
+.idea/
+.vscode/
+minio-data/
+.venv-pdf/
+docs/
+.tools/
+*.png
+!.github/**

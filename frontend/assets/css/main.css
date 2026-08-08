@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply m-0 min-h-full font-sans text-ink antialiased;
+    direction: rtl;
+    background:
+      radial-gradient(1200px 600px at 90% -10%, rgba(61, 156, 240, 0.18), transparent 55%),
+      radial-gradient(900px 500px at 10% 0%, rgba(45, 212, 191, 0.12), transparent 50%),
+      linear-gradient(180deg, #0c1219, #080c11 80%);
+  }
+
+  body {
+    @apply min-h-screen;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  code,
+  .font-mono {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply mb-[1.15rem] rounded-panel border border-line bg-bg-1/90 p-[1.15rem_1.2rem_1.35rem] backdrop-blur-[10px];
+  }
+
+  .panel-head {
+    @apply mb-[0.9rem] flex items-baseline justify-between gap-4;
+  }
+
+  .panel-head h2 {
+    @apply m-0 text-[1.05rem] font-semibold;
+  }
+
+  .btn {
+    @apply cursor-pointer appearance-none rounded-lg border border-line bg-accent/20 px-3 py-[0.45rem] text-[0.85rem] font-medium text-ink transition-[background,border-color] duration-150;
+  }
+
+  .btn:hover {
+    @apply border-accent/55 bg-accent/30;
+  }
+
+  .btn-danger {
+    @apply bg-danger/15;
+  }
+
+  .btn-danger:hover {
+    @apply border-danger/50;
+  }
+
+  .btn-ghost {
+    @apply cursor-pointer appearance-none rounded-lg border border-line bg-transparent px-3 py-[0.45rem] text-[0.85rem] font-medium text-ink transition-[background,border-color] duration-150;
+  }
+
+  .btn-ghost:hover {
+    @apply border-accent/55 bg-accent/30;
+  }
+}
