@@ -1,193 +1,113 @@
-# Fava — Streaming Gateway & Large File Management
+# Fava — Streaming File Gateway
 
-چالش فنی استخدام: درگاه استریم و مدیریت فایل‌های حجیم.
+Small full-stack project for uploading and downloading large files without parking them on disk or loading the whole thing into memory. Files stream through Express into MinIO (S3-compatible). UI is Nuxt (SSR, Persian RTL). Everything runs with Docker Compose.
 
-یک Full-stack file gateway که آپلود/دانلود فایل‌های حجیم را **به‌صورت Streaming** از طریق Express به Object Storage سازگار با S3 (MinIO) انجام می‌دهد — بدون ذخیره روی دیسک Backend و بدون بافر کردن کل فایل در حافظه.
+## Prerequisites
 
----
+- Docker + Docker Compose
+- A couple GB of free disk for images/volumes
 
-## خروجی‌های مورد انتظار (Deliverables)
-
-این مخزن شامل موارد خواسته‌شده در صورت‌مسئله است:
-
-| مورد | وضعیت |
-|------|--------|
-| سورس‌کد کامل پروژه | ✅ |
-| فایل `docker-compose.yml` | ✅ |
-| فایل `README.md` | ✅ (همین فایل) |
-| فایل‌های کانفیگ لازم (`.env.example`, Nginx, Dockerfiles, CI) | ✅ |
-| اجرای پروژه فقط با `docker-compose up -d` | ✅ |
-
-پس از Push، **لینک همین ریپازیتوری GitHub/GitLab** را برای شرکت ارسال کنید.
-
----
-
-## پیش‌نیازها و نحوه اجرا
-
-### پیش‌نیازها
-
-- Docker Engine
-- Docker Compose v2 (دستور `docker compose` یا باینری قدیمی `docker-compose`)
-- حدود ۲GB فضای دیسک برای imageها و volume
-
-### اجرا (طبق صورت‌مسئله)
+## Run
 
 ```bash
-git clone <REPO_URL>
-cd Fava
+git clone https://github.com/mhmd-rouhani/fava-streaming-gateway.git
+cd fava-streaming-gateway
 docker-compose up -d
 ```
 
-اگر روی سیستم شما فقط Compose V2 نصب است:
+If your machine only has Compose V2:
 
 ```bash
 docker compose up -d
 ```
 
-> در اولین اجرا، Compose سرویس‌هایی که `build` دارند را خودکار بیلد می‌کند. اگر بعداً کد را عوض کردید: `docker compose up -d --build`
+First run builds the images. After code changes, use `docker compose up -d --build`.
 
-### آدرس‌ها
+App: **http://localhost:8080**
 
-| سرویس | آدرس |
-|--------|------|
-| اپلیکیشن (از طریق Nginx) | http://localhost:8080 |
-| MinIO API (اختیاری / دیباگ) | http://localhost:9000 |
-| MinIO Console (اختیاری) | http://localhost:9001 — کاربر/رمز: `minioadmin` / `minioadmin` |
+| What | Where |
+|------|--------|
+| App (Nginx) | http://localhost:8080 |
+| MinIO API | http://localhost:9000 |
+| MinIO console | http://localhost:9001 (`minioadmin` / `minioadmin`) |
 
-### توقف
+Stop with `docker compose down`. Add `-v` if you also want to wipe stored files.
 
-```bash
-docker-compose down
-# یا
-docker compose down
-```
+Optional: copy `.env.example` to `.env`. Defaults work fine without it.
 
-پاک کردن داده‌های ذخیره‌شده (volume):
-
-```bash
-docker compose down -v
-```
-
-تنظیمات اختیاری: فایل `.env.example` را به `.env` کپی کنید. بدون `.env` هم با مقادیر پیش‌فرض اجرا می‌شود.
-
----
-
-## توضیح معماری سیستم
+## Architecture
 
 ```
 Browser
    │
    ▼
-┌─────────────┐     /          ┌──────────────┐
-│   Nginx     │───────────────▶│  Nuxt (SSR)  │
-│  :8080      │                └──────────────┘
-│  (proxy)    │     /api/      ┌──────────────┐     stream      ┌──────────┐
-│             │───────────────▶│   Express    │───────────────▶│  MinIO   │
-└─────────────┘                │  mem ≤150MB  │   Put/Get      │  (S3)    │
-                               │  rate-limit  │                └──────────┘
-                               └──────────────┘
+ Nginx :8080
+   ├── /      → Nuxt (SSR)
+   └── /api/  → Express (≤150MB) ──stream──▶ MinIO (S3)
 ```
 
-| جزء | نقش |
-|-----|-----|
-| **Nginx** | Reverse Proxy. با `proxy_request_buffering off` بدنه آپلود را بافر نمی‌کند تا Streaming واقعی بماند. |
-| **Nuxt 3** | رابط کاربری SSR برای آپلود، لیست و دانلود (UI فارسی RTL). |
-| **Express** | با **Busboy** multipart را استریم می‌کند و با **`@aws-sdk/lib-storage`** به MinIO می‌فرستد. دانلود هم `GetObject` را مستقیم به کلاینت pipe می‌کند. |
-| **MinIO** | Object Storage سازگار با S3. |
+Nginx sits in front and turns off request buffering, so upload bodies aren't held on the proxy. Express reads multipart with Busboy and sends the stream to MinIO through `@aws-sdk/lib-storage` (5MB parts, one at a time). Downloads go the other way: MinIO → Express → client. No temp files on the backend disk.
 
-### چرا حافظه Backend زیر ۱۵۰MB می‌ماند؟
+Why the backend stays under 150MB:
 
-1. بدون `multer` (نه دیسک، نه بافر کامل در RAM)
-2. بدون `express.json()` روی مسیر آپلود — درخواست خام به Busboy pipe می‌شود
-3. آپلود Multipart به S3 با `partSize: 5MB` و `queueSize: 1`
-4. Nginx: `proxy_request_buffering off` + `proxy_max_temp_file_size 0`
-5. محدودیت Docker: `mem_limit: 150m` روی سرویس backend
+- no multer / disk storage
+- no `express.json()` on the upload path
+- S3 multipart with `queueSize: 1`
+- Nginx `proxy_request_buffering off`
+- Docker `mem_limit: 150m` on the backend service
 
----
-
-## ساختار پروژه
+## Project structure
 
 ```
-Fava/
-├── docker-compose.yml          # ارکستراسیون همه سرویس‌ها
-├── .env.example                # نمونه متغیرهای محیطی
-├── .github/workflows/ci.yml    # CI
-├── nginx/nginx.conf            # Reverse proxy + streaming
+├── docker-compose.yml
+├── .env.example
+├── .github/workflows/ci.yml
+├── nginx/nginx.conf
 ├── backend/
 │   ├── Dockerfile
-│   ├── package.json
-│   ├── package-lock.json
 │   └── src/
 │       ├── index.js
 │       ├── config.js
 │       ├── routes/files.js
 │       ├── services/storage.js
 │       └── middleware/
-│           ├── errorHandler.js
-│           └── rateLimit.js
-├── frontend/
-│   ├── Dockerfile
-│   ├── nuxt.config.ts
-│   ├── app.vue
-│   ├── pages/index.vue
-│   ├── components/
-│   │   ├── HeroHeader.vue
-│   │   ├── FileUpload.vue
-│   │   └── FileList.vue
-│   ├── utils/format.ts
-│   └── assets/css/main.css
-└── README.md
+└── frontend/
+    ├── Dockerfile
+    ├── nuxt.config.ts
+    ├── pages/
+    ├── components/
+    └── utils/
 ```
 
----
+## Design choices
 
-## فرضیات و تصمیمات طراحی
+- Object keys look like `{timestamp}-{uuid8}-{originalName}` so they stay unique and still readable.
+- One file per upload request.
+- Default max upload size is 5GB (`MAX_UPLOAD_BYTES`).
+- Rate limits are per IP (15 min window): 30 uploads, 120 other `/files` calls.
+- Bucket `uploads` is created on backend startup, with retries while MinIO comes up.
+- MinIO credentials in the defaults are demo-only — change them via `.env` if this ever leaves your machine.
+- Frontend talks to `/api` on the same origin through Nginx, so the browser never hits MinIO directly.
+- Kept the bonus list short on purpose. Quality over feature pile-up — no Keycloak, no chunk/resume.
 
-- **کلید فایل‌ها:** `{timestamp}-{uuid8}-{sanitizedOriginalName}` برای یکتایی + خوانایی
-- **یک فایل در هر درخواست** (`files: 1` در Busboy)
-- **سقف حجم آپلود:** پیش‌فرض ۵GiB (`MAX_UPLOAD_BYTES`) — با `Content-Length` و `fileSize` در Busboy
-- **Rate limit:** per IP در پنجره ۱۵ دقیقه‌ای — ۳۰ آپلود / ۱۲۰ درخواست دیگر روی `/files`
-- **Bucket** به نام `uploads` در استارت Backend ساخته/چک می‌شود (با retry تا آماده شدن MinIO)
-- **اعتبارنامه MinIO** پیش‌فرض دموی محلی است (`minioadmin`) — برای محیط واقعی از `.env` عوض شود
-- **Frontend** فقط با `/api` روی همان origin حرف می‌زند (از طریق Nginx) تا مرورگر مستقیم به MinIO وصل نشود
-- **SSR** در Nuxt فعال است
-- **UI فارسی و RTL** برای تجربه کاربری بومی
-- **کیفیت طراحی مهم‌تر از تعداد فیچر** — عمداً Keycloak و Chunk/Resume اضافه نشد تا معماری ساده و قابل دفاع بماند
+## Testing upload / download
 
----
+1. `docker-compose up -d`
+2. Open http://localhost:8080
+3. Drop a file (or pick one)
+4. Check it shows up in the list
+5. Download it and confirm it matches
+6. Optional: `docker stats` — backend should stay under 150MB during a large upload
 
-## نحوه تست Upload / Download
-
-### از UI
-
-1. پروژه را بالا بیاورید: `docker-compose up -d`
-2. مرورگر: http://localhost:8080
-3. یک فایل را Drag & Drop کنید یا انتخاب کنید
-4. در بخش «فایل‌ها» ظاهر شدن آن را ببینید
-5. روی **دانلود** بزنید و فایل را بررسی کنید
-6. (اختیاری) حافظه Backend را ببینید:
+curl:
 
 ```bash
-docker stats
-```
-
-سرویس backend باید حتی هنگام آپلود فایل بزرگ زیر **۱۵۰MB** بماند.
-
-### با curl
-
-```bash
-# Upload
-curl -X POST http://localhost:8080/api/files/upload \
-  -F "file=@./README.md"
-
-# List
+curl -X POST http://localhost:8080/api/files/upload -F "file=@./README.md"
 curl http://localhost:8080/api/files
-
-# Download (کلید را از پاسخ list بردارید)
 curl -OJ "http://localhost:8080/api/files/<key>/download"
 ```
 
-### تست سریع Rate Limit
+Rate limit smoke test (you should start seeing `429` after ~30 uploads):
 
 ```bash
 for i in $(seq 1 35); do
@@ -196,59 +116,34 @@ for i in $(seq 1 35); do
 done
 ```
 
-بعد از حدود ۳۰ آپلود در ۱۵ دقیقه باید `429` ببینید.
+## Bonus features
 
----
+| Item | Done? |
+|------|-------|
+| Nuxt SSR | yes |
+| Rate limiting | yes |
+| CI/CD (GitHub Actions) | yes |
+| Request logging (`morgan`) + Helmet | yes |
+| Chunk upload | no |
+| Resume upload | no |
+| Keycloak / forward auth | no |
+| Integration tests | no |
 
-## لیست بخش‌های امتیازی پیاده‌سازی‌شده
+## API
 
-| بخش امتیازی | وضعیت |
-|-------------|--------|
-| Nuxt SSR | ✅ پیاده‌سازی شده |
-| Rate Limiting | ✅ با `express-rate-limit` (سخت‌گیرانه‌تر روی upload) |
-| CI/CD | ✅ GitHub Actions (syntax بک‌اند، بیلد Nuxt، validate کردن compose) |
-| Logging | ✅ `morgan` + هدرهای امنیتی Helmet |
-| Chunk Upload | ❌ (عمداً خارج از اسکوپ برای تمرکز روی طراحی) |
-| Resume Upload | ❌ |
-| Forward Auth / Keycloak | ❌ |
-| Integration Tests | ❌ |
+Base path behind the proxy: `/api`
 
----
-
-## API (مرجع کوتاه)
-
-Base (از طریق پروکسی): `/api`
-
-| Method | Path | توضیح |
+| Method | Path | Notes |
 |--------|------|--------|
-| `GET` | `/health` | Health (بدون rate limit) |
-| `GET` | `/files` | لیست فایل‌ها |
-| `POST` | `/files/upload` | آپلود استریمی (فیلد `file`) |
-| `GET` | `/files/:key/download` | دانلود استریمی |
-| `GET` | `/files/:key/meta` | متادیتا |
-| `DELETE` | `/files/:key` | حذف |
+| `GET` | `/health` | not rate-limited |
+| `GET` | `/files` | list |
+| `POST` | `/files/upload` | multipart field `file` |
+| `GET` | `/files/:key/download` | streamed download |
+| `GET` | `/files/:key/meta` | metadata |
+| `DELETE` | `/files/:key` | delete |
 
----
+## Limitations
 
-## محدودیت‌ها (طبق خواست صورت‌مسئله)
-
-- پیشرفت آپلود در UI مربوط به مسیر **کلاینت → Gateway** است، نه پیشرفت پارت‌های S3.
-- احراز هویت کاربر نهایی وجود ندارد — برای دموی چالش؛ برای اینترنت عمومی مناسب نیست.
-- پورت‌های MinIO (`9000`/`9001`) برای راحتی دیباگ publish شده‌اند؛ در صورت نیاز می‌توان از `docker-compose.yml` حذف کرد.
-
----
-
-## امنیت و مدیریت خطا
-
-- Helmet برای هدرهای امنیتی HTTP
-- Sanitize نام فایل؛ نام خالی رد می‌شود
-- سقف حجم → `413`
-- Rate limit → `429`
-- Error handler مرکزی؛ در production استک‌تریس لو نمی‌رود
-- پاکسازی object ناقص در MinIO اگر آپلود به‌خاطر سقف حجم قطع شود
-
----
-
-## License
-
-Challenge submission — برای ارزیابی آزادانه قابل استفاده است.
+- UI progress is client → gateway, not S3 part progress.
+- No user auth. Fine for a local challenge demo; don't expose it publicly as-is.
+- MinIO ports `9000`/`9001` are published for debugging — remove them from compose if you don't need them.

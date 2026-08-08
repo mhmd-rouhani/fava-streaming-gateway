@@ -8,7 +8,6 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      # Optional direct access for debugging (API + console)
       - "9000:9000"
       - "9001:9001"
     networks:
@@ -31,8 +30,6 @@ services:
       RATE_LIMIT_UPLOAD_MAX: ${RATE_LIMIT_UPLOAD_MAX:-30}
     depends_on:
       - minio
-    # Backend retries MinIO connectivity on boot (see src/index.js).
-    # الزامات: حداکثر حافظه بک‌اند ۱۵۰ مگابایت
     mem_limit: 150m
     deploy:
       resources:

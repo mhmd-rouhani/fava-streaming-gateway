@@ -8,11 +8,8 @@ export const config = {
     bucket: process.env.S3_BUCKET || 'uploads',
     forcePathStyle: true,
   },
-  /** Multipart part size for @aws-sdk/lib-storage (keeps memory bounded). */
   uploadPartSize: 5 * 1024 * 1024,
-  /** Only one part in flight at a time to stay well under the 150MB limit. */
   uploadQueueSize: 1,
-  /** Reject uploads larger than this (default 5 GiB). */
   maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES || 5 * 1024 * 1024 * 1024),
   rateLimit: {
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),

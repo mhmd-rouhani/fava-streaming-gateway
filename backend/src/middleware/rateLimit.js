@@ -1,7 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { config } from '../config.js';
 
-/** General API protection (list / download / delete). */
 export const apiLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.apiMax,
@@ -10,10 +9,6 @@ export const apiLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
-/**
- * Stricter limit on uploads — stops flood abuse without touching the
- * streaming path (limiter runs before the body is consumed).
- */
 export const uploadLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.uploadMax,

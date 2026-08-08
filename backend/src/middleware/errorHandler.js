@@ -13,7 +13,6 @@ export function errorHandler(err, _req, res, _next) {
         : err.message || 'Request failed',
   };
 
-  // In non-production, include a bit more detail for debugging.
   if (process.env.NODE_ENV !== 'production' && status >= 500 && err.message) {
     payload.detail = err.message;
   }

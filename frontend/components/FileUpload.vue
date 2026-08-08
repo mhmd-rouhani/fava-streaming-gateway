@@ -83,10 +83,6 @@ function onFilePicked(e: Event) {
   input.value = '';
 }
 
-/**
- * آپلود با XHR برای نمایش پیشرفت. بدنه FormData استریم می‌شود
- * و Backend بدون بافر کامل فایل، آن را به S3 می‌فرستد.
- */
 function uploadFile(file: File) {
   uploadError.value = '';
   uploadOk.value = '';

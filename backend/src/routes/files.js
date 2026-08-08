@@ -19,11 +19,6 @@ function sanitizeFilename(name) {
   return base.slice(0, 200) || 'file';
 }
 
-/**
- * POST /files/upload
- * Multipart form field "file". The file part is piped straight to S3
- * via @aws-sdk/lib-storage (multipart) — no disk, no full-file buffer.
- */
 router.post('/upload', uploadLimiter, (req, res) => {
   const contentType = req.headers['content-type'] || '';
   if (!contentType.includes('multipart/form-data')) {
@@ -32,7 +27,6 @@ router.post('/upload', uploadLimiter, (req, res) => {
     });
   }
 
-  // Cheap early reject when Content-Length is present (streaming still used).
   const declared = Number(req.headers['content-length']);
   if (Number.isFinite(declared) && declared > config.maxUploadBytes) {
     return res.status(413).json({
@@ -88,7 +82,6 @@ router.post('/upload', uploadLimiter, (req, res) => {
       fileStream.destroy(new Error('File exceeds size limit'));
     });
 
-    // Abort S3 upload if the client disconnects mid-stream.
     const onClose = () => {
       fileStream.destroy(new Error('Client aborted upload'));
     };
@@ -107,9 +100,7 @@ router.post('/upload', uploadLimiter, (req, res) => {
         if (truncated) {
           try {
             await deleteObject(key);
-          } catch {
-            /* best-effort cleanup */
-          }
+          } catch {}
           return fail(413, `File too large. Max allowed is ${config.maxUploadBytes} bytes`);
         }
         settled = true;
@@ -127,9 +118,7 @@ router.post('/upload', uploadLimiter, (req, res) => {
         if (truncated || /size limit/i.test(err.message || '')) {
           try {
             await deleteObject(key);
-          } catch {
-            /* best-effort cleanup */
-          }
+          } catch {}
           return fail(413, `File too large. Max allowed is ${config.maxUploadBytes} bytes`);
         }
         fail(500, err.message || 'Upload failed');
@@ -146,14 +135,9 @@ router.post('/upload', uploadLimiter, (req, res) => {
     }
   });
 
-  // Critical: pipe the raw request into Busboy without buffering the body.
   req.pipe(busboy);
 });
 
-/**
- * GET /files
- * List objects in the bucket.
- */
 router.get('/', async (_req, res, next) => {
   try {
     const files = await listFiles();
@@ -163,10 +147,6 @@ router.get('/', async (_req, res, next) => {
   }
 });
 
-/**
- * GET /files/:key/download
- * Stream object bytes from S3 to the client (no local temp file).
- */
 router.get('/:key/download', async (req, res, next) => {
   try {
     const key = decodeURIComponent(req.params.key);
@@ -204,9 +184,6 @@ router.get('/:key/download', async (req, res, next) => {
   }
 });
 
-/**
- * GET /files/:key/meta
- */
 router.get('/:key/meta', async (req, res, next) => {
   try {
     const key = decodeURIComponent(req.params.key);
@@ -227,9 +204,6 @@ router.get('/:key/meta', async (req, res, next) => {
   }
 });
 
-/**
- * DELETE /files/:key
- */
 router.delete('/:key', async (req, res, next) => {
   try {
     const key = decodeURIComponent(req.params.key);

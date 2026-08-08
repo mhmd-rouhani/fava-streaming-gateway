@@ -10,19 +10,16 @@ import { apiLimiter } from './middleware/rateLimit.js';
 
 const app = express();
 
-// Behind Nginx — needed so rate-limit sees the real client IP.
 app.set('trust proxy', 1);
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// Health is intentionally not rate-limited (compose / probes).
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'fava-backend' });
 });
 
-// No express.json() / urlencoded on the upload path — bodies stream via Busboy.
 app.use('/files', apiLimiter, filesRouter);
 
 app.use((_req, res) => {

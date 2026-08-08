@@ -22,9 +22,6 @@ const s3 = new S3Client({
 
 const bucket = config.s3.bucket;
 
-/**
- * Ensure the target bucket exists (idempotent).
- */
 export async function ensureBucket() {
   try {
     await s3.send(new HeadBucketCommand({ Bucket: bucket }));
@@ -38,13 +35,6 @@ export async function ensureBucket() {
   }
 }
 
-/**
- * Stream a readable file body directly to object storage via multipart upload.
- * Does not write to disk and does not buffer the whole file in memory.
- *
- * @param {import('stream').Readable} body
- * @param {{ key: string, contentType?: string, contentLength?: number }} meta
- */
 export async function uploadStream(body, meta) {
   const upload = new Upload({
     client: s3,
@@ -104,9 +94,6 @@ export async function listFiles() {
   return objects;
 }
 
-/**
- * @returns {Promise<{ body: import('stream').Readable, contentType: string, contentLength?: number, metadata: Record<string,string> }>}
- */
 export async function getObjectStream(key) {
   const res = await s3.send(
     new GetObjectCommand({
